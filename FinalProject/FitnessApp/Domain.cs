@@ -53,6 +53,6 @@ public class JogData {
 
     public override string ToString() {
         // use an invariant sortable format so it's easy to parse later
-        return $"{User.Name}:{StartTime}:{EndTime}:{RecordedAt:o}";
+        return $"{User.Name}|{StartTime}|{EndTime}|{RecordedAt:o}";
     }
 }

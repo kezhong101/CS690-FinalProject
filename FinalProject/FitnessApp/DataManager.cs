@@ -66,7 +66,7 @@ public class DataManager {
         }
         var jogFileContent = File.ReadAllLines("jog-data.txt");
         foreach (var line in jogFileContent) {
-            var splitted = line.Split(":", StringSplitOptions.RemoveEmptyEntries);
+            var splitted = line.Split("|", StringSplitOptions.RemoveEmptyEntries);
             if (splitted.Length < 3) continue; // malformed
 
             var userName = splitted[0];

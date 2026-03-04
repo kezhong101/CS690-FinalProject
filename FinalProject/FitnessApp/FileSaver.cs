@@ -15,6 +15,6 @@ public class FileSaver
 
     // overload for jog data so the same FileSaver can be reused
     public void AppendData(JogData data) {
-        File.AppendAllText(this.fileName, data.User.Name + ":" + data.StartTime + ":" + data.EndTime + ":" + data.RecordedAt.ToString("o") + Environment.NewLine);
+        File.AppendAllText(this.fileName, data.User.Name + "|" + data.StartTime + "|" + data.EndTime + "|" + data.RecordedAt.ToString("o") + Environment.NewLine);
     }
 }
