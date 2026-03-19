@@ -3,13 +3,16 @@ namespace FitnessApp;
 public class DataManager {
 
     FileSaver jogFileSaver;
+    FileSaver pushUpFileSaver;
     private bool jogDataLoaded;
+    private bool pushUpDataLoaded;
 
 
     public List<User> Users { get; }
     public List<MainNavItem> MainNavItems { get; }
     public List<Activity> Activities { get; }
     public List<JogData> JogData { get; private set; }
+    public List<PushUpData> PushUpData { get; private set; }
 
     /// <summary>
     /// Public accessor that ensures data is loaded lazily.
@@ -19,9 +22,15 @@ public class DataManager {
         return JogData;
     }
 
+    public IEnumerable<PushUpData> GetAllPushUpData() {
+        EnsurePushUpDataLoaded();
+        return PushUpData;
+    }
+
     public DataManager() {
 
         jogFileSaver = new FileSaver("jog-data.txt");
+        pushUpFileSaver = new FileSaver("pushup-data.txt");
 
         Users = new List<User>();
         Users.Add(new User("Ethan Smith"));
@@ -40,8 +49,9 @@ public class DataManager {
         Activities.Add(new Activity("Push-ups"));
         Activities.Add(new Activity("Strength Training"));
 
-        // do not load jog data immediately; load lazily when requested
+        // do not load data immediately; load lazily when requested
         JogData = new List<JogData>();
+        PushUpData = new List<PushUpData>();
     }
 
     public void AddNewJogData(JogData data) {
@@ -53,6 +63,16 @@ public class DataManager {
         }
         this.JogData.Add(data);
         this.jogFileSaver.AppendData(data);
+    }
+
+    public void AddNewPushUpData(PushUpData data) {
+        EnsurePushUpDataLoaded();
+
+        if (data.RecordedAt == DateTime.MinValue) {
+            data = new PushUpData(data.User, data.Count, DateTime.Now);
+        }
+        this.PushUpData.Add(data);
+        this.pushUpFileSaver.AppendData(data);
     }
 
     // make sure data is loaded from file before use
@@ -83,6 +103,36 @@ public class DataManager {
             }
 
             JogData.Add(new JogData(user, startTime, endTime, recordedAt));
+        }
+    }
+
+    private void EnsurePushUpDataLoaded() {
+        if (pushUpDataLoaded) return;
+        pushUpDataLoaded = true;
+
+        PushUpData = new List<PushUpData>();
+        if (!File.Exists("pushup-data.txt")) {
+            File.Create("pushup-data.txt").Dispose();
+        }
+
+        var fileContent = File.ReadAllLines("pushup-data.txt");
+        foreach (var line in fileContent) {
+            var splitted = line.Split("|", StringSplitOptions.RemoveEmptyEntries);
+            if (splitted.Length < 3) continue;
+
+            var userName = splitted[0];
+            var user = new User(userName);
+
+            if (!int.TryParse(splitted[1], out var count)) continue;
+
+            DateTime recordedAt = DateTime.MinValue;
+            if (splitted.Length >= 3 && DateTime.TryParse(splitted[2], null, System.Globalization.DateTimeStyles.RoundtripKind, out var parsed)) {
+                recordedAt = parsed;
+            } else {
+                recordedAt = DateTime.Now;
+            }
+
+            PushUpData.Add(new PushUpData(user, count, recordedAt));
         }
     }
 }

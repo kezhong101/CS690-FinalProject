@@ -56,3 +56,19 @@ public class JogData {
         return $"{User.Name}|{StartTime}|{EndTime}|{RecordedAt:o}";
     }
 }
+
+public class PushUpData {
+    public User User { get; }
+    public int Count { get; }
+    public DateTime RecordedAt { get; }
+
+    public PushUpData(User user, int count, DateTime recordedAt) {
+        this.User = user;
+        this.Count = count;
+        this.RecordedAt = recordedAt;
+    }
+
+    public override string ToString() {
+        return $"{User.Name}|{Count}|{RecordedAt:o}";
+    }
+}

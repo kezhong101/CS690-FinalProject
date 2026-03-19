@@ -1,5 +1,6 @@
 namespace FitnessApp;
 using System;
+using System.Linq;
 using Spectre.Console;
 
 public class ConsoleUI {
@@ -73,6 +74,37 @@ public class ConsoleUI {
                     AnsiConsole.Write(table);
 
                 } else if (selectedActivity.Name == "Push-ups") {
+                    int count;
+                    string countInput;
+
+                    do {
+                        countInput = AskForInput("Enter push-up count:");
+                        if (!int.TryParse(countInput, out count) || count <= 0) {
+                            Console.WriteLine("Please enter a positive whole number for push-up count.");
+                        }
+                    } while (!int.TryParse(countInput, out count) || count <= 0);
+
+                    PushUpData newPushUpData = new PushUpData(selectedUser, count, DateTime.Now);
+                    dataManager.AddNewPushUpData(newPushUpData);
+
+                    Console.WriteLine($"Added {count} push-ups for {selectedUser.Name} at {newPushUpData.RecordedAt:yyyy-MM-dd HH:mm}.");
+
+                    // show all push-up entries and daily running total for selected user
+                    var table = new Table();
+                    table.Title = new TableTitle("Push-ups Data");
+                    table.AddColumns("User", "Count", "Recorded At");
+
+                    foreach (var entry in dataManager.GetAllPushUpData().Where(e => e.User.Name == selectedUser.Name)) {
+                        table.AddRow(entry.User.ToString(), entry.Count.ToString(), entry.RecordedAt.ToString("yyyy-MM-dd HH:mm"));
+                    }
+
+                    AnsiConsole.Write(table);
+
+                    var todayTotal = dataManager.GetAllPushUpData()
+                        .Where(e => e.User.Name == selectedUser.Name && e.RecordedAt.Date == DateTime.Now.Date)
+                        .Sum(e => e.Count);
+
+                    Console.WriteLine($"Total push-ups today for {selectedUser.Name}: {todayTotal}");
 
                 } else if (selectedActivity.Name == "Strength Training") {
                 }

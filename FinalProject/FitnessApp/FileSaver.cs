@@ -17,4 +17,9 @@ public class FileSaver
     public void AppendData(JogData data) {
         File.AppendAllText(this.fileName, data.User.Name + "|" + data.StartTime + "|" + data.EndTime + "|" + data.RecordedAt.ToString("o") + Environment.NewLine);
     }
+
+    // overload for push-up data
+    public void AppendData(PushUpData data) {
+        File.AppendAllText(this.fileName, data.User.Name + "|" + data.Count + "|" + data.RecordedAt.ToString("o") + Environment.NewLine);
+    }
 }
