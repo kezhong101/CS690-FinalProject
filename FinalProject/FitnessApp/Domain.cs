@@ -1,4 +1,6 @@
 using System;
+using System.Globalization;
+using System.Linq;
 
 namespace FitnessApp;
 
@@ -49,6 +51,50 @@ public class JogData {
         this.StartTime = startTime;
         this.EndTime = endTime;
         this.RecordedAt = recordedAt;
+    }
+
+    public TimeSpan Duration {
+        get {
+            if (!TryParseTime(StartTime, out var start) || !TryParseTime(EndTime, out var end)) {
+                return TimeSpan.Zero;
+            }
+            if (end < start) {
+                // crossing midnight
+                return (TimeSpan.FromDays(1) - start) + end;
+            }
+            return end - start;
+        }
+    }
+
+    public static bool TryParseTime(string value, out TimeSpan result) {
+        value = value?.Trim() ?? string.Empty;
+        result = TimeSpan.Zero;
+
+        if (value.Contains(':')) {
+            var formats = new[] { "h\\:mm", "hh\\:mm", "h\\:m", "hh\\:m" };
+            return TimeSpan.TryParseExact(value, formats, CultureInfo.InvariantCulture, out result);
+        }
+
+        if (value.All(char.IsDigit)) {
+            if (value.Length == 4) {
+                var hours = int.Parse(value.Substring(0, 2));
+                var mins = int.Parse(value.Substring(2, 2));
+                if (hours >= 0 && hours < 24 && mins >= 0 && mins < 60) {
+                    result = new TimeSpan(hours, mins, 0);
+                    return true;
+                }
+            }
+            if (value.Length == 3) {
+                var hours = int.Parse(value.Substring(0, 1));
+                var mins = int.Parse(value.Substring(1, 2));
+                if (hours >= 0 && hours < 24 && mins >= 0 && mins < 60) {
+                    result = new TimeSpan(hours, mins, 0);
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     public override string ToString() {

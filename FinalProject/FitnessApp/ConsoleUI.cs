@@ -42,18 +42,18 @@ public class ConsoleUI {
                     string startTime;
                     do {
                         startTime = AskForInput("Enter Start Time (HHMM):");
-                        if (!TimeSpan.TryParse(startTime, out _)) {
-                            Console.WriteLine("Please enter time in HHmm format");
+                        if (!JogData.TryParseTime(startTime, out _)) {
+                            Console.WriteLine("Please enter time in HHmm or HH:mm format");
                         }
-                    } while (!TimeSpan.TryParse(startTime, out _));
+                    } while (!JogData.TryParseTime(startTime, out _));
 
                     string endTime;
                     do {
                         endTime = AskForInput("Enter End Time (HHMM):");
-                        if (!TimeSpan.TryParse(endTime, out _)) {
-                            Console.WriteLine("Please enter time in HHmm format");
+                        if (!JogData.TryParseTime(endTime, out _)) {
+                            Console.WriteLine("Please enter time in HHmm or HH:mm format");
                         }
-                    } while (!TimeSpan.TryParse(endTime, out _));
+                    } while (!JogData.TryParseTime(endTime, out _));
 
                     // record the entry time automatically
                     JogData newJogData = new JogData(selectedUser, startTime, endTime, DateTime.Now);
@@ -61,17 +61,24 @@ public class ConsoleUI {
 
                     Console.WriteLine("You entered " + startTime + " as start time and " + endTime + " as end time.");
 
-                    // display all the entries in a nice table format
+                    // display all the entries in a nice table format including calculated duration
                     var table = new Table();
                     table.Title = new TableTitle("Jogging Data");
-                    table.AddColumns("User", "Start Time", "End Time", "Recorded At");
+                    table.AddColumns("User", "Start Time", "End Time", "Duration", "Recorded At");
 
                     // make sure jog data is loaded before iterating
                     foreach (var entry in dataManager.GetAllJogData()) {
-                        table.AddRow(entry.User.ToString(), entry.StartTime, entry.EndTime, entry.RecordedAt.ToString("yyyy-MM-dd HH:mm"));
+                        table.AddRow(
+                            entry.User.ToString(),
+                            entry.StartTime,
+                            entry.EndTime,
+                            entry.Duration.ToString(@"hh\:mm"),
+                            entry.RecordedAt.ToString("yyyy-MM-dd HH:mm"));
                     }
 
                     AnsiConsole.Write(table);
+
+                    Console.WriteLine($"Last jog duration: {newJogData.Duration.ToString(@"h\:mm")} (hours:minutes)");
 
                 } else if (selectedActivity.Name == "Push-ups") {
                     int count;
