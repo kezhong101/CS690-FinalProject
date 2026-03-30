@@ -1,13 +1,16 @@
 namespace FitnessApp;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Spectre.Console;
 
 public class ConsoleUI {
     DataManager dataManager;
+    Reporter reporter;
 
     public ConsoleUI() {
         dataManager = new DataManager();
+        reporter = new Reporter();
     }
 
     public void Show() {
@@ -116,6 +119,8 @@ public class ConsoleUI {
                 } else if (selectedActivity.Name == "Strength Training") {
                 }
 
+            } else if (selectedUser != null && selectedMainNavItem.Item == "View history & Compare") {
+                ShowWorkoutHistoryAndCompare(selectedUser);
             } else {
                 if (selectedMainNavItem.Item != "End") {
                     Console.WriteLine("Please select a user first!");
@@ -126,6 +131,142 @@ public class ConsoleUI {
                 }
             }
         } while (selectedMainNavItem.Item != "End");
+    }
+
+    private void ShowWorkoutHistoryAndCompare(User user)
+    {
+        var summary = reporter.GetWorkoutSummaryByDate(user, dataManager.GetAllJogData(), dataManager.GetAllPushUpData());
+
+        if (!summary.Any())
+        {
+            Console.WriteLine($"No workout data found for {user.Name}.");
+            return;
+        }
+
+        // Display overall history table
+        var historyTable = new Table();
+        historyTable.Title = new TableTitle($"Workout History for {user.Name}");
+        historyTable.AddColumns("Date", "Total Jog Duration", "Total Push-ups");
+
+        foreach (var entry in summary.OrderByDescending(s => s.Key))
+        {
+            historyTable.AddRow(
+                entry.Key.ToString("yyyy-MM-dd"),
+                entry.Value.TotalJogDuration.ToString(@"hh\:mm"),
+                entry.Value.TotalPushUps.ToString()
+            );
+        }
+
+        AnsiConsole.Write(historyTable);
+
+        // Option to compare specific dates
+        var dates = summary.Keys.OrderByDescending(d => d).ToList();
+        if (dates.Count >= 2)
+        {
+            Console.WriteLine("\nWould you like to compare two specific days? (y/n)");
+            var response = Console.ReadLine()?.ToLower();
+            if (response == "y" || response == "yes")
+            {
+                var date1 = AnsiConsole.Prompt(
+                    new SelectionPrompt<DateTime>()
+                        .Title("Select first date to compare")
+                        .AddChoices(dates)
+                        .UseConverter(d => d.ToString("yyyy-MM-dd")));
+
+                var remainingDates = dates.Where(d => d != date1).ToList();
+                var date2 = AnsiConsole.Prompt(
+                    new SelectionPrompt<DateTime>()
+                        .Title("Select second date to compare")
+                        .AddChoices(remainingDates)
+                        .UseConverter(d => d.ToString("yyyy-MM-dd")));
+
+                ShowComparison(user, date1, date2);
+            }
+        }
+    }
+
+    private void ShowComparison(User user, DateTime date1, DateTime date2)
+    {
+        var jogHistory = reporter.GetJogHistoryByDate(user, dataManager.GetAllJogData());
+        var pushUpHistory = reporter.GetPushUpHistoryByDate(user, dataManager.GetAllPushUpData());
+
+        var comparisonTable = new Table();
+        comparisonTable.Title = new TableTitle($"Comparison: {date1:yyyy-MM-dd} vs {date2:yyyy-MM-dd} for {user.Name}");
+        comparisonTable.AddColumns("Activity", date1.ToString("yyyy-MM-dd"), date2.ToString("yyyy-MM-dd"), "Difference");
+
+        // Jog comparison
+        var jog1 = jogHistory.ContainsKey(date1) ? TimeSpan.FromTicks(jogHistory[date1].Sum(j => j.Duration.Ticks)) : TimeSpan.Zero;
+        var jog2 = jogHistory.ContainsKey(date2) ? TimeSpan.FromTicks(jogHistory[date2].Sum(j => j.Duration.Ticks)) : TimeSpan.Zero;
+        var jogDiff = jog2 - jog1;
+        comparisonTable.AddRow(
+            "Jog Duration",
+            jog1.ToString(@"hh\:mm"),
+            jog2.ToString(@"hh\:mm"),
+            (jogDiff.TotalMinutes > 0 ? "+" : "") + jogDiff.ToString(@"hh\:mm")
+        );
+
+        // Push-up comparison
+        var push1 = pushUpHistory.ContainsKey(date1) ? pushUpHistory[date1].Sum(p => p.Count) : 0;
+        var push2 = pushUpHistory.ContainsKey(date2) ? pushUpHistory[date2].Sum(p => p.Count) : 0;
+        var pushDiff = push2 - push1;
+        comparisonTable.AddRow(
+            "Push-ups",
+            push1.ToString(),
+            push2.ToString(),
+            (pushDiff > 0 ? "+" : "") + pushDiff.ToString()
+        );
+
+        AnsiConsole.Write(comparisonTable);
+
+        // Show detailed sessions if available
+        if (jogHistory.ContainsKey(date1) || jogHistory.ContainsKey(date2))
+        {
+            Console.WriteLine("\nDetailed Jog Sessions:");
+            var detailedJogTable = new Table();
+            detailedJogTable.AddColumns("Date", "Start Time", "End Time", "Duration");
+
+            foreach (var date in new[] { date1, date2 })
+            {
+                if (jogHistory.ContainsKey(date))
+                {
+                    foreach (var jog in jogHistory[date])
+                    {
+                        detailedJogTable.AddRow(
+                            date.ToString("yyyy-MM-dd"),
+                            jog.StartTime,
+                            jog.EndTime,
+                            jog.Duration.ToString(@"hh\:mm")
+                        );
+                    }
+                }
+            }
+
+            AnsiConsole.Write(detailedJogTable);
+        }
+
+        if (pushUpHistory.ContainsKey(date1) || pushUpHistory.ContainsKey(date2))
+        {
+            Console.WriteLine("\nDetailed Push-up Sessions:");
+            var detailedPushTable = new Table();
+            detailedPushTable.AddColumns("Date", "Count", "Time");
+
+            foreach (var date in new[] { date1, date2 })
+            {
+                if (pushUpHistory.ContainsKey(date))
+                {
+                    foreach (var push in pushUpHistory[date])
+                    {
+                        detailedPushTable.AddRow(
+                            date.ToString("yyyy-MM-dd"),
+                            push.Count.ToString(),
+                            push.RecordedAt.ToString("HH:mm")
+                        );
+                    }
+                }
+            }
+
+            AnsiConsole.Write(detailedPushTable);
+        }
     }
 
     public static string AskForInput(string message)

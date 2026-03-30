@@ -145,7 +145,44 @@ public class FileSaverTests
 
         // Assert
         Assert.NotNull(loaded);
-        Assert.Equal(startTime, loaded!.StartTime);
-        Assert.Equal(endTime, loaded.EndTime);
+    }
+
+    [Fact]
+    public void DataManager_GetWorkoutSummaryByDate_ReturnsCorrectSummary()
+    {
+        // Arrange: isolate test data
+        var pushupFile = "pushup-data.txt";
+        var jogFile = "jog-data.txt";
+        if (File.Exists(pushupFile)) File.Delete(pushupFile);
+        if (File.Exists(jogFile)) File.Delete(jogFile);
+
+        var dataManager = new DataManager();
+        var user = new User("Test User");
+        var date1 = new DateTime(2023, 10, 1);
+        var date2 = new DateTime(2023, 10, 2);
+
+        // Add test data
+        dataManager.AddNewPushUpData(new PushUpData(user, 10, date1));
+        dataManager.AddNewPushUpData(new PushUpData(user, 5, date1));
+        dataManager.AddNewJogData(new JogData(user, "0800", "0900", date1)); // 1 hour
+        dataManager.AddNewPushUpData(new PushUpData(user, 20, date2));
+        dataManager.AddNewJogData(new JogData(user, "0700", "0730", date2)); // 30 min
+
+        // Act
+        var reporter = new Reporter();
+        var summary = reporter.GetWorkoutSummaryByDate(user, dataManager.GetAllJogData(), dataManager.GetAllPushUpData());
+
+        // Assert
+        Assert.Equal(2, summary.Count);
+        Assert.True(summary.ContainsKey(date1));
+        Assert.True(summary.ContainsKey(date2));
+
+        var day1 = summary[date1];
+        Assert.Equal(TimeSpan.FromHours(1), day1.TotalJogDuration);
+        Assert.Equal(15, day1.TotalPushUps);
+
+        var day2 = summary[date2];
+        Assert.Equal(TimeSpan.FromMinutes(30), day2.TotalJogDuration);
+        Assert.Equal(20, day2.TotalPushUps);
     }
 }

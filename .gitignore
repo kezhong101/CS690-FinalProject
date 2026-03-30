@@ -299,6 +299,9 @@ node_modules/
 # Visual Studio 6 workspace options file
 *.opt
 
+# Data files
+FinalProject/FitnessApp/*.txt
+
 # Visual Studio 6 auto-generated workspace file (contains which files were open etc.)
 *.vbw
 
@@ -480,3 +483,5 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+FinalProject/FitnessApp/jog-data.txt
+FinalProject/FitnessApp/pushup-data.txt

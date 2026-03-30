@@ -1,5 +1,8 @@
 namespace FitnessApp;
 
+using System.Collections.Generic;
+using System.IO;
+
 public class DataManager {
 
     FileSaver jogFileSaver;
@@ -135,5 +138,6 @@ public class DataManager {
             PushUpData.Add(new PushUpData(user, count, recordedAt));
         }
     }
+
 }
 
