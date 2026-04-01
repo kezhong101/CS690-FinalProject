@@ -153,8 +153,10 @@ public class FileSaverTests
         // Arrange: isolate test data
         var pushupFile = "pushup-data.txt";
         var jogFile = "jog-data.txt";
+        var strengthFile = "strength-data.txt";
         if (File.Exists(pushupFile)) File.Delete(pushupFile);
         if (File.Exists(jogFile)) File.Delete(jogFile);
+        if (File.Exists(strengthFile)) File.Delete(strengthFile);
 
         var dataManager = new DataManager();
         var user = new User("Test User");
@@ -170,7 +172,7 @@ public class FileSaverTests
 
         // Act
         var reporter = new Reporter();
-        var summary = reporter.GetWorkoutSummaryByDate(user, dataManager.GetAllJogData(), dataManager.GetAllPushUpData());
+        var summary = reporter.GetWorkoutSummaryByDate(user, dataManager.GetAllJogData(), dataManager.GetAllPushUpData(), dataManager.GetAllStrengthTrainingData());
 
         // Assert
         Assert.Equal(2, summary.Count);
@@ -180,9 +182,11 @@ public class FileSaverTests
         var day1 = summary[date1];
         Assert.Equal(TimeSpan.FromHours(1), day1.TotalJogDuration);
         Assert.Equal(15, day1.TotalPushUps);
+        Assert.Equal(TimeSpan.Zero, day1.TotalStrengthDuration);
 
         var day2 = summary[date2];
         Assert.Equal(TimeSpan.FromMinutes(30), day2.TotalJogDuration);
         Assert.Equal(20, day2.TotalPushUps);
+        Assert.Equal(TimeSpan.Zero, day2.TotalStrengthDuration);
     }
 }
