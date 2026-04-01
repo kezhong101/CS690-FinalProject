@@ -118,3 +118,41 @@ public class PushUpData {
         return $"{User.Name}|{Count}|{RecordedAt:o}";
     }
 }
+
+public enum GoalType {
+    Daily,
+    Weekly,
+    Monthly
+}
+
+public enum GoalTargetType {
+    Count, // for push-ups
+    Duration // for jogging
+}
+
+public class Goal {
+    public User User { get; }
+    public Activity Activity { get; }
+    public GoalType Period { get; }
+    public GoalTargetType TargetType { get; }
+    public int TargetCount { get; } // for Count type
+    public TimeSpan TargetDuration { get; } // for Duration type
+    public DateTime CreatedAt { get; }
+    public string Description { get; }
+
+    public Goal(User user, Activity activity, GoalType period, GoalTargetType targetType, int targetCount, TimeSpan targetDuration, string description) {
+        this.User = user;
+        this.Activity = activity;
+        this.Period = period;
+        this.TargetType = targetType;
+        this.TargetCount = targetCount;
+        this.TargetDuration = targetDuration;
+        this.CreatedAt = DateTime.Now;
+        this.Description = description;
+    }
+
+    public override string ToString() {
+        string targetStr = TargetType == GoalTargetType.Count ? $"{TargetCount}" : $"{TargetDuration.TotalMinutes} minutes";
+        return $"{User.Name}|{Activity.Name}|{Period}|{TargetType}|{TargetCount}|{TargetDuration.TotalMinutes}|{CreatedAt:o}|{Description}";
+    }
+}

@@ -121,6 +121,8 @@ public class ConsoleUI {
 
             } else if (selectedUser != null && selectedMainNavItem.Item == "View history & Compare") {
                 ShowWorkoutHistoryAndCompare(selectedUser);
+            } else if (selectedUser != null && selectedMainNavItem.Item == "Goals") {
+                ShowGoalsMenu(selectedUser);
             } else {
                 if (selectedMainNavItem.Item != "End") {
                     Console.WriteLine("Please select a user first!");
@@ -266,6 +268,136 @@ public class ConsoleUI {
             }
 
             AnsiConsole.Write(detailedPushTable);
+        }
+    }
+
+    private void ShowGoalsMenu(User user) {
+        var goalMenuItems = new List<string> { "Create Goal", "View Goals", "Back" };
+        var selected = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Goals Menu")
+                .AddChoices(goalMenuItems));
+
+        if (selected == "Create Goal") {
+            CreateGoal(user);
+        } else if (selected == "View Goals") {
+            ViewGoals(user);
+        }
+    }
+
+    private void CreateGoal(User user) {
+        var activity = AnsiConsole.Prompt(
+            new SelectionPrompt<Activity>()
+                .Title("Select activity for goal")
+                .AddChoices(dataManager.Activities));
+
+        var period = AnsiConsole.Prompt(
+            new SelectionPrompt<GoalType>()
+                .Title("Select goal period")
+                .AddChoices(Enum.GetValues<GoalType>()));
+
+        GoalTargetType targetType;
+        if (activity.Name == "Jogging") {
+            targetType = GoalTargetType.Duration;
+        } else if (activity.Name == "Push-ups") {
+            targetType = GoalTargetType.Count;
+        } else {
+            // For other activities, ask
+            targetType = AnsiConsole.Prompt(
+                new SelectionPrompt<GoalTargetType>()
+                    .Title("Select target type")
+                    .AddChoices(Enum.GetValues<GoalTargetType>()));
+        }
+
+        int targetCount = 0;
+        TimeSpan targetDuration = TimeSpan.Zero;
+
+        if (targetType == GoalTargetType.Count) {
+            string countInput;
+            do {
+                countInput = AskForInput("Enter target count:");
+                if (!int.TryParse(countInput, out targetCount) || targetCount <= 0) {
+                    Console.WriteLine("Please enter a positive whole number.");
+                }
+            } while (!int.TryParse(countInput, out targetCount) || targetCount <= 0);
+        } else {
+            string durationInput;
+            do {
+                durationInput = AskForInput("Enter target duration in minutes:");
+                if (!int.TryParse(durationInput, out var minutes) || minutes <= 0) {
+                    Console.WriteLine("Please enter a positive whole number for minutes.");
+                } else {
+                    targetDuration = TimeSpan.FromMinutes(minutes);
+                }
+            } while (targetDuration == TimeSpan.Zero);
+        }
+
+        string description = AskForInput("Enter goal description:");
+
+        var goal = new Goal(user, activity, period, targetType, targetCount, targetDuration, description);
+        dataManager.AddNewGoal(goal);
+
+        Console.WriteLine("Goal created successfully!");
+    }
+
+    private void ViewGoals(User user) {
+        var userGoals = dataManager.GetAllGoals().Where(g => g.User.Name == user.Name).ToList();
+
+        if (!userGoals.Any()) {
+            Console.WriteLine("No goals found for this user.");
+            return;
+        }
+
+        var table = new Table();
+        table.Title = new TableTitle($"Goals for {user.Name}");
+        table.AddColumns("Activity", "Period", "Target", "Current Progress", "Description", "Created");
+
+        foreach (var goal in userGoals) {
+            string targetStr = goal.TargetType == GoalTargetType.Count 
+                ? $"{goal.TargetCount}" 
+                : $"{goal.TargetDuration.TotalMinutes} minutes";
+            
+            string progressStr = CalculateProgress(goal);
+
+            table.AddRow(
+                goal.Activity.Name,
+                goal.Period.ToString(),
+                targetStr,
+                progressStr,
+                goal.Description,
+                goal.CreatedAt.ToString("yyyy-MM-dd")
+            );
+        }
+
+        AnsiConsole.Write(table);
+    }
+
+    private string CalculateProgress(Goal goal) {
+        DateTime now = DateTime.Now;
+        DateTime startDate;
+
+        if (goal.Period == GoalType.Daily) {
+            startDate = now.Date;
+        } else if (goal.Period == GoalType.Weekly) {
+            // Start of week (Monday)
+            int diff = (7 + (now.DayOfWeek - DayOfWeek.Monday)) % 7;
+            startDate = now.AddDays(-diff).Date;
+        } else { // Monthly
+            startDate = new DateTime(now.Year, now.Month, 1);
+        }
+
+        if (goal.TargetType == GoalTargetType.Count) {
+            // For push-ups
+            var pushUps = dataManager.GetAllPushUpData()
+                .Where(p => p.User.Name == goal.User.Name && p.RecordedAt >= startDate)
+                .Sum(p => p.Count);
+            return $"{pushUps}/{goal.TargetCount}";
+        } else {
+            // For jogging duration
+            var jogDuration = dataManager.GetAllJogData()
+                .Where(j => j.User.Name == goal.User.Name && j.RecordedAt >= startDate)
+                .Sum(j => j.Duration.TotalMinutes);
+            return $"{jogDuration:F0}/{goal.TargetDuration.TotalMinutes} min";
         }
     }
 

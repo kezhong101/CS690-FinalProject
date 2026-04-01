@@ -1,5 +1,6 @@
 namespace FitnessApp;
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -7,8 +8,10 @@ public class DataManager {
 
     FileSaver jogFileSaver;
     FileSaver pushUpFileSaver;
+    FileSaver goalFileSaver;
     private bool jogDataLoaded;
     private bool pushUpDataLoaded;
+    private bool goalDataLoaded;
 
 
     public List<User> Users { get; }
@@ -16,6 +19,7 @@ public class DataManager {
     public List<Activity> Activities { get; }
     public List<JogData> JogData { get; private set; }
     public List<PushUpData> PushUpData { get; private set; }
+    public List<Goal> Goals { get; private set; }
 
     /// <summary>
     /// Public accessor that ensures data is loaded lazily.
@@ -30,10 +34,16 @@ public class DataManager {
         return PushUpData;
     }
 
+    public IEnumerable<Goal> GetAllGoals() {
+        EnsureGoalDataLoaded();
+        return Goals;
+    }
+
     public DataManager() {
 
         jogFileSaver = new FileSaver("jog-data.txt");
         pushUpFileSaver = new FileSaver("pushup-data.txt");
+        goalFileSaver = new FileSaver("goals-data.txt");
 
         Users = new List<User>();
         Users.Add(new User("Ethan Smith"));
@@ -55,6 +65,7 @@ public class DataManager {
         // do not load data immediately; load lazily when requested
         JogData = new List<JogData>();
         PushUpData = new List<PushUpData>();
+        Goals = new List<Goal>();
     }
 
     public void AddNewJogData(JogData data) {
@@ -76,6 +87,13 @@ public class DataManager {
         }
         this.PushUpData.Add(data);
         this.pushUpFileSaver.AppendData(data);
+    }
+
+    public void AddNewGoal(Goal goal) {
+        EnsureGoalDataLoaded();
+
+        this.Goals.Add(goal);
+        this.goalFileSaver.AppendData(goal);
     }
 
     // make sure data is loaded from file before use
@@ -136,6 +154,41 @@ public class DataManager {
             }
 
             PushUpData.Add(new PushUpData(user, count, recordedAt));
+        }
+    }
+
+    private void EnsureGoalDataLoaded() {
+        if (goalDataLoaded) return;
+        goalDataLoaded = true;
+
+        Goals = new List<Goal>();
+        if (!File.Exists("goals-data.txt")) {
+            File.Create("goals-data.txt").Dispose();
+        }
+
+        var fileContent = File.ReadAllLines("goals-data.txt");
+        foreach (var line in fileContent) {
+            var splitted = line.Split("|", StringSplitOptions.RemoveEmptyEntries);
+            if (splitted.Length < 8) continue;
+
+            var userName = splitted[0];
+            var user = new User(userName);
+
+            var activityName = splitted[1];
+            var activity = new Activity(activityName);
+
+            if (!Enum.TryParse<GoalType>(splitted[2], out var period)) continue;
+            if (!Enum.TryParse<GoalTargetType>(splitted[3], out var targetType)) continue;
+
+            if (!int.TryParse(splitted[4], out var targetCount)) continue;
+            if (!double.TryParse(splitted[5], out var targetMinutes)) continue;
+            var targetDuration = TimeSpan.FromMinutes(targetMinutes);
+
+            if (!DateTime.TryParse(splitted[6], null, System.Globalization.DateTimeStyles.RoundtripKind, out var createdAt)) continue;
+
+            var description = splitted[7];
+
+            Goals.Add(new Goal(user, activity, period, targetType, targetCount, targetDuration, description));
         }
     }
 
