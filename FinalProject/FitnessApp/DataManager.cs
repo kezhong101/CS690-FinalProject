@@ -96,6 +96,21 @@ public class DataManager {
         this.goalFileSaver.AppendData(goal);
     }
 
+    public void JoinGoal(Goal goal, User user) {
+        EnsureGoalDataLoaded();
+
+        if (goal.IsShared && !goal.Participants.Contains(user)) {
+            goal.AddParticipant(user);
+            // Resave all goals to update the file
+            RewriteGoalsFile();
+        }
+    }
+
+    private void RewriteGoalsFile() {
+        var lines = Goals.Select(g => g.ToString()).ToArray();
+        File.WriteAllLines("goals-data.txt", lines);
+    }
+
     // make sure data is loaded from file before use
     private void EnsureJogDataLoaded() {
         if (jogDataLoaded) return;
@@ -171,8 +186,8 @@ public class DataManager {
             var splitted = line.Split("|", StringSplitOptions.RemoveEmptyEntries);
             if (splitted.Length < 8) continue;
 
-            var userName = splitted[0];
-            var user = new User(userName);
+            var creatorName = splitted[0];
+            var creator = new User(creatorName);
 
             var activityName = splitted[1];
             var activity = new Activity(activityName);
@@ -188,7 +203,21 @@ public class DataManager {
 
             var description = splitted[7];
 
-            Goals.Add(new Goal(user, activity, period, targetType, targetCount, targetDuration, description));
+            bool isShared = false;
+            List<User> participants = new List<User> { creator };
+
+            if (splitted.Length >= 10) {
+                if (bool.TryParse(splitted[8], out var parsedShared)) {
+                    isShared = parsedShared;
+                }
+                var participantsStr = splitted[9];
+                participants = participantsStr.Split(',').Select(name => new User(name.Trim())).ToList();
+            }
+
+            var goal = new Goal(creator, activity, period, targetType, targetCount, targetDuration, description, isShared);
+            goal.Participants.Clear();
+            goal.Participants.AddRange(participants);
+            Goals.Add(goal);
         }
     }
 

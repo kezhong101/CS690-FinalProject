@@ -131,7 +131,7 @@ public enum GoalTargetType {
 }
 
 public class Goal {
-    public User User { get; }
+    public User Creator { get; }
     public Activity Activity { get; }
     public GoalType Period { get; }
     public GoalTargetType TargetType { get; }
@@ -139,9 +139,11 @@ public class Goal {
     public TimeSpan TargetDuration { get; } // for Duration type
     public DateTime CreatedAt { get; }
     public string Description { get; }
+    public bool IsShared { get; }
+    public List<User> Participants { get; }
 
-    public Goal(User user, Activity activity, GoalType period, GoalTargetType targetType, int targetCount, TimeSpan targetDuration, string description) {
-        this.User = user;
+    public Goal(User creator, Activity activity, GoalType period, GoalTargetType targetType, int targetCount, TimeSpan targetDuration, string description, bool isShared = false) {
+        this.Creator = creator;
         this.Activity = activity;
         this.Period = period;
         this.TargetType = targetType;
@@ -149,10 +151,18 @@ public class Goal {
         this.TargetDuration = targetDuration;
         this.CreatedAt = DateTime.Now;
         this.Description = description;
+        this.IsShared = isShared;
+        this.Participants = new List<User> { creator };
+    }
+
+    public void AddParticipant(User user) {
+        if (!Participants.Contains(user)) {
+            Participants.Add(user);
+        }
     }
 
     public override string ToString() {
-        string targetStr = TargetType == GoalTargetType.Count ? $"{TargetCount}" : $"{TargetDuration.TotalMinutes} minutes";
-        return $"{User.Name}|{Activity.Name}|{Period}|{TargetType}|{TargetCount}|{TargetDuration.TotalMinutes}|{CreatedAt:o}|{Description}";
+        string participantsStr = string.Join(",", Participants.Select(u => u.Name));
+        return $"{Creator.Name}|{Activity.Name}|{Period}|{TargetType}|{TargetCount}|{TargetDuration.TotalMinutes}|{CreatedAt:o}|{Description}|{IsShared}|{participantsStr}";
     }
 }

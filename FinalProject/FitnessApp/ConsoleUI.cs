@@ -123,6 +123,8 @@ public class ConsoleUI {
                 ShowWorkoutHistoryAndCompare(selectedUser);
             } else if (selectedUser != null && selectedMainNavItem.Item == "Goals") {
                 ShowGoalsMenu(selectedUser);
+            } else if (selectedUser != null && selectedMainNavItem.Item == "Shared Goals") {
+                ShowSharedGoalsMenu(selectedUser);
             } else {
                 if (selectedMainNavItem.Item != "End") {
                     Console.WriteLine("Please select a user first!");
@@ -285,6 +287,57 @@ public class ConsoleUI {
         }
     }
 
+    private void ShowSharedGoalsMenu(User user) {
+        var sharedGoals = dataManager.GetAllGoals().Where(g => g.IsShared).ToList();
+
+        if (!sharedGoals.Any()) {
+            Console.WriteLine("No shared goals available.");
+            return;
+        }
+
+        var table = new Table();
+        table.Title = new TableTitle("Available Shared Goals");
+        table.AddColumns("Creator", "Activity", "Period", "Target", "Description", "Participants", "Joined");
+
+        foreach (var goal in sharedGoals) {
+            string targetStr = goal.TargetType == GoalTargetType.Count 
+                ? $"{goal.TargetCount}" 
+                : $"{goal.TargetDuration.TotalMinutes} minutes";
+            
+            string participantsStr = string.Join(", ", goal.Participants.Select(p => p.Name));
+            string joinedStr = goal.Participants.Any(p => p.Name == user.Name) ? "Yes" : "No";
+
+            table.AddRow(
+                goal.Creator.Name,
+                goal.Activity.Name,
+                goal.Period.ToString(),
+                targetStr,
+                goal.Description,
+                participantsStr,
+                joinedStr
+            );
+        }
+
+        AnsiConsole.Write(table);
+
+        // Allow joining
+        var joinableGoals = sharedGoals.Where(g => !g.Participants.Any(p => p.Name == user.Name)).ToList();
+        if (joinableGoals.Any()) {
+            Console.WriteLine("\nWould you like to join a shared goal? (y/n)");
+            var response = Console.ReadLine()?.ToLower();
+            if (response == "y" || response == "yes") {
+                var goalToJoin = AnsiConsole.Prompt(
+                    new SelectionPrompt<Goal>()
+                        .Title("Select a goal to join")
+                        .AddChoices(joinableGoals)
+                        .UseConverter(g => $"{g.Creator.Name}: {g.Description}"));
+
+                dataManager.JoinGoal(goalToJoin, user);
+                Console.WriteLine("Successfully joined the goal!");
+            }
+        }
+    }
+
     private void CreateGoal(User user) {
         var activity = AnsiConsole.Prompt(
             new SelectionPrompt<Activity>()
@@ -334,14 +387,20 @@ public class ConsoleUI {
 
         string description = AskForInput("Enter goal description:");
 
-        var goal = new Goal(user, activity, period, targetType, targetCount, targetDuration, description);
+        bool isShared = false;
+        string sharedInput = AskForInput("Is this a shared goal? (y/n):");
+        if (sharedInput.ToLower().StartsWith("y")) {
+            isShared = true;
+        }
+
+        var goal = new Goal(user, activity, period, targetType, targetCount, targetDuration, description, isShared);
         dataManager.AddNewGoal(goal);
 
         Console.WriteLine("Goal created successfully!");
     }
 
     private void ViewGoals(User user) {
-        var userGoals = dataManager.GetAllGoals().Where(g => g.User.Name == user.Name).ToList();
+        var userGoals = dataManager.GetAllGoals().Where(g => g.Participants.Any(p => p.Name == user.Name)).ToList();
 
         if (!userGoals.Any()) {
             Console.WriteLine("No goals found for this user.");
@@ -350,29 +409,34 @@ public class ConsoleUI {
 
         var table = new Table();
         table.Title = new TableTitle($"Goals for {user.Name}");
-        table.AddColumns("Activity", "Period", "Target", "Current Progress", "Description", "Created");
+        table.AddColumns("Type", "Activity", "Period", "Target", "Current Progress", "Description", "Created", "Participants");
 
         foreach (var goal in userGoals) {
+            string typeStr = goal.IsShared ? "Shared" : "Personal";
             string targetStr = goal.TargetType == GoalTargetType.Count 
                 ? $"{goal.TargetCount}" 
                 : $"{goal.TargetDuration.TotalMinutes} minutes";
             
-            string progressStr = CalculateProgress(goal);
+            string progressStr = CalculateProgress(goal, user);
+
+            string participantsStr = string.Join(", ", goal.Participants.Select(p => p.Name));
 
             table.AddRow(
+                typeStr,
                 goal.Activity.Name,
                 goal.Period.ToString(),
                 targetStr,
                 progressStr,
                 goal.Description,
-                goal.CreatedAt.ToString("yyyy-MM-dd")
+                goal.CreatedAt.ToString("yyyy-MM-dd"),
+                participantsStr
             );
         }
 
         AnsiConsole.Write(table);
     }
 
-    private string CalculateProgress(Goal goal) {
+    private string CalculateProgress(Goal goal, User user) {
         DateTime now = DateTime.Now;
         DateTime startDate;
 
@@ -386,16 +450,18 @@ public class ConsoleUI {
             startDate = new DateTime(now.Year, now.Month, 1);
         }
 
+        var participants = goal.IsShared ? goal.Participants : new List<User> { user };
+
         if (goal.TargetType == GoalTargetType.Count) {
             // For push-ups
             var pushUps = dataManager.GetAllPushUpData()
-                .Where(p => p.User.Name == goal.User.Name && p.RecordedAt >= startDate)
+                .Where(p => participants.Any(part => part.Name == p.User.Name) && p.RecordedAt >= startDate)
                 .Sum(p => p.Count);
             return $"{pushUps}/{goal.TargetCount}";
         } else {
             // For jogging duration
             var jogDuration = dataManager.GetAllJogData()
-                .Where(j => j.User.Name == goal.User.Name && j.RecordedAt >= startDate)
+                .Where(j => participants.Any(part => part.Name == j.User.Name) && j.RecordedAt >= startDate)
                 .Sum(j => j.Duration.TotalMinutes);
             return $"{jogDuration:F0}/{goal.TargetDuration.TotalMinutes} min";
         }
