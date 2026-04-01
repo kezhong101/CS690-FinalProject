@@ -8,9 +8,11 @@ public class DataManager {
 
     FileSaver jogFileSaver;
     FileSaver pushUpFileSaver;
+    FileSaver strengthTrainingFileSaver;
     FileSaver goalFileSaver;
     private bool jogDataLoaded;
     private bool pushUpDataLoaded;
+    private bool strengthTrainingDataLoaded;
     private bool goalDataLoaded;
 
 
@@ -19,6 +21,7 @@ public class DataManager {
     public List<Activity> Activities { get; }
     public List<JogData> JogData { get; private set; }
     public List<PushUpData> PushUpData { get; private set; }
+    public List<StrengthTrainingData> StrengthTrainingData { get; private set; }
     public List<Goal> Goals { get; private set; }
 
     /// <summary>
@@ -34,6 +37,11 @@ public class DataManager {
         return PushUpData;
     }
 
+    public IEnumerable<StrengthTrainingData> GetAllStrengthTrainingData() {
+        EnsureStrengthTrainingDataLoaded();
+        return StrengthTrainingData;
+    }
+
     public IEnumerable<Goal> GetAllGoals() {
         EnsureGoalDataLoaded();
         return Goals;
@@ -43,6 +51,7 @@ public class DataManager {
 
         jogFileSaver = new FileSaver("jog-data.txt");
         pushUpFileSaver = new FileSaver("pushup-data.txt");
+        strengthTrainingFileSaver = new FileSaver("strength-data.txt");
         goalFileSaver = new FileSaver("goals-data.txt");
 
         Users = new List<User>();
@@ -65,6 +74,7 @@ public class DataManager {
         // do not load data immediately; load lazily when requested
         JogData = new List<JogData>();
         PushUpData = new List<PushUpData>();
+        StrengthTrainingData = new List<StrengthTrainingData>();
         Goals = new List<Goal>();
     }
 
@@ -87,6 +97,17 @@ public class DataManager {
         }
         this.PushUpData.Add(data);
         this.pushUpFileSaver.AppendData(data);
+    }
+
+    public void AddNewStrengthTrainingData(StrengthTrainingData data) {
+        EnsureStrengthTrainingDataLoaded();
+
+        if (data.RecordedAt == DateTime.MinValue) {
+            // ensure there's always a timestamp
+            data = new StrengthTrainingData(data.User, data.StartTime, data.EndTime, DateTime.Now);
+        }
+        this.StrengthTrainingData.Add(data);
+        this.strengthTrainingFileSaver.AppendData(data);
     }
 
     public void AddNewGoal(Goal goal) {
@@ -169,6 +190,36 @@ public class DataManager {
             }
 
             PushUpData.Add(new PushUpData(user, count, recordedAt));
+        }
+    }
+
+    private void EnsureStrengthTrainingDataLoaded() {
+        if (strengthTrainingDataLoaded) return;
+        strengthTrainingDataLoaded = true;
+
+        StrengthTrainingData = new List<StrengthTrainingData>();
+        if (!File.Exists("strength-data.txt")) {
+            File.Create("strength-data.txt").Dispose();
+        }
+        var strengthFileContent = File.ReadAllLines("strength-data.txt");
+        foreach (var line in strengthFileContent) {
+            var splitted = line.Split("|", StringSplitOptions.RemoveEmptyEntries);
+            if (splitted.Length < 3) continue; // malformed
+
+            var userName = splitted[0];
+            var user = new User(userName);
+
+            var startTime = splitted[1];
+            var endTime = splitted[2];
+
+            DateTime recordedAt = DateTime.MinValue;
+            if (splitted.Length >= 4 && DateTime.TryParse(splitted[3], null, System.Globalization.DateTimeStyles.RoundtripKind, out var parsed)) {
+                recordedAt = parsed;
+            } else {
+                recordedAt = DateTime.Now;
+            }
+
+            StrengthTrainingData.Add(new StrengthTrainingData(user, startTime, endTime, recordedAt));
         }
     }
 

@@ -22,12 +22,21 @@ public class Reporter
             .ToDictionary(g => g.Key, g => g.ToList());
     }
 
-    public Dictionary<DateTime, (TimeSpan TotalJogDuration, int TotalPushUps)> GetWorkoutSummaryByDate(User user, IEnumerable<JogData> jogData, IEnumerable<PushUpData> pushUpData)
+    public Dictionary<DateTime, List<StrengthTrainingData>> GetStrengthTrainingHistoryByDate(User user, IEnumerable<StrengthTrainingData> strengthData)
+    {
+        return strengthData
+            .Where(s => s.User.Name == user.Name)
+            .GroupBy(s => s.RecordedAt.Date)
+            .ToDictionary(g => g.Key, g => g.ToList());
+    }
+
+    public Dictionary<DateTime, (TimeSpan TotalJogDuration, int TotalPushUps, TimeSpan TotalStrengthDuration)> GetWorkoutSummaryByDate(User user, IEnumerable<JogData> jogData, IEnumerable<PushUpData> pushUpData, IEnumerable<StrengthTrainingData> strengthData)
     {
         var jogHistory = GetJogHistoryByDate(user, jogData);
         var pushUpHistory = GetPushUpHistoryByDate(user, pushUpData);
+        var strengthHistory = GetStrengthTrainingHistoryByDate(user, strengthData);
 
-        var allDates = jogHistory.Keys.Union(pushUpHistory.Keys).OrderByDescending(d => d);
+        var allDates = jogHistory.Keys.Union(pushUpHistory.Keys).Union(strengthHistory.Keys).OrderByDescending(d => d);
 
         return allDates.ToDictionary(
             date => date,
@@ -37,7 +46,10 @@ public class Reporter
                     : TimeSpan.Zero,
                 TotalPushUps: pushUpHistory.ContainsKey(date)
                     ? pushUpHistory[date].Sum(p => p.Count)
-                    : 0
+                    : 0,
+                TotalStrengthDuration: strengthHistory.ContainsKey(date)
+                    ? TimeSpan.FromTicks(strengthHistory[date].Sum(s => s.Duration.Ticks))
+                    : TimeSpan.Zero
             )
         );
     }

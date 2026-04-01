@@ -119,6 +119,38 @@ public class PushUpData {
     }
 }
 
+public class StrengthTrainingData {
+    public User User { get; }
+    public string StartTime { get; }
+    public string EndTime { get; }
+    public DateTime RecordedAt { get; }
+
+    public StrengthTrainingData(User user, string startTime, string endTime, DateTime recordedAt) {
+        this.User = user;
+        this.StartTime = startTime;
+        this.EndTime = endTime;
+        this.RecordedAt = recordedAt;
+    }
+
+    public TimeSpan Duration {
+        get {
+            if (!JogData.TryParseTime(StartTime, out var start) || !JogData.TryParseTime(EndTime, out var end)) {
+                return TimeSpan.Zero;
+            }
+            if (end < start) {
+                // crossing midnight
+                return (TimeSpan.FromDays(1) - start) + end;
+            }
+            return end - start;
+        }
+    }
+
+    public override string ToString() {
+        // use an invariant sortable format so it's easy to parse later
+        return $"{User.Name}|{StartTime}|{EndTime}|{RecordedAt:o}";
+    }
+}
+
 public enum GoalType {
     Daily,
     Weekly,

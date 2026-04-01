@@ -117,6 +117,48 @@ public class ConsoleUI {
                     Console.WriteLine($"Total push-ups today for {selectedUser.Name}: {todayTotal}");
 
                 } else if (selectedActivity.Name == "Strength Training") {
+                    // use AskForInput helper to reduce repeated prompting logic
+                    string startTime;
+                    do {
+                        startTime = AskForInput("Enter Start Time (HHMM):");
+                        if (!JogData.TryParseTime(startTime, out _)) {
+                            Console.WriteLine("Please enter time in HHmm or HH:mm format");
+                        }
+                    } while (!JogData.TryParseTime(startTime, out _));
+
+                    string endTime;
+                    do {
+                        endTime = AskForInput("Enter End Time (HHMM):");
+                        if (!JogData.TryParseTime(endTime, out _)) {
+                            Console.WriteLine("Please enter time in HHmm or HH:mm format");
+                        }
+                    } while (!JogData.TryParseTime(endTime, out _));
+
+                    // record the entry time automatically
+                    StrengthTrainingData newStrengthData = new StrengthTrainingData(selectedUser, startTime, endTime, DateTime.Now);
+                    dataManager.AddNewStrengthTrainingData(newStrengthData);
+
+                    Console.WriteLine("You entered " + startTime + " as start time and " + endTime + " as end time.");
+
+                    // display all the entries in a nice table format including calculated duration
+                    var table = new Table();
+                    table.Title = new TableTitle("Strength Training Data");
+                    table.AddColumns("User", "Start Time", "End Time", "Duration", "Recorded At");
+
+                    // make sure strength data is loaded before iterating
+                    foreach (var entry in dataManager.GetAllStrengthTrainingData()) {
+                        table.AddRow(
+                            entry.User.ToString(),
+                            entry.StartTime,
+                            entry.EndTime,
+                            entry.Duration.ToString(@"hh\:mm"),
+                            entry.RecordedAt.ToString("yyyy-MM-dd HH:mm"));
+                    }
+
+                    AnsiConsole.Write(table);
+
+                    Console.WriteLine($"Last strength training duration: {newStrengthData.Duration.ToString(@"h\:mm")} (hours:minutes)");
+
                 }
 
             } else if (selectedUser != null && selectedMainNavItem.Item == "View history & Compare") {
@@ -139,7 +181,7 @@ public class ConsoleUI {
 
     private void ShowWorkoutHistoryAndCompare(User user)
     {
-        var summary = reporter.GetWorkoutSummaryByDate(user, dataManager.GetAllJogData(), dataManager.GetAllPushUpData());
+        var summary = reporter.GetWorkoutSummaryByDate(user, dataManager.GetAllJogData(), dataManager.GetAllPushUpData(), dataManager.GetAllStrengthTrainingData());
 
         if (!summary.Any())
         {
@@ -150,14 +192,15 @@ public class ConsoleUI {
         // Display overall history table
         var historyTable = new Table();
         historyTable.Title = new TableTitle($"Workout History for {user.Name}");
-        historyTable.AddColumns("Date", "Total Jog Duration", "Total Push-ups");
+        historyTable.AddColumns("Date", "Total Jog Duration", "Total Push-ups", "Total Strength Duration");
 
         foreach (var entry in summary.OrderByDescending(s => s.Key))
         {
             historyTable.AddRow(
                 entry.Key.ToString("yyyy-MM-dd"),
                 entry.Value.TotalJogDuration.ToString(@"hh\:mm"),
-                entry.Value.TotalPushUps.ToString()
+                entry.Value.TotalPushUps.ToString(),
+                entry.Value.TotalStrengthDuration.ToString(@"hh\:mm")
             );
         }
 
@@ -193,6 +236,7 @@ public class ConsoleUI {
     {
         var jogHistory = reporter.GetJogHistoryByDate(user, dataManager.GetAllJogData());
         var pushUpHistory = reporter.GetPushUpHistoryByDate(user, dataManager.GetAllPushUpData());
+        var strengthHistory = reporter.GetStrengthTrainingHistoryByDate(user, dataManager.GetAllStrengthTrainingData());
 
         var comparisonTable = new Table();
         comparisonTable.Title = new TableTitle($"Comparison: {date1:yyyy-MM-dd} vs {date2:yyyy-MM-dd} for {user.Name}");
@@ -218,6 +262,17 @@ public class ConsoleUI {
             push1.ToString(),
             push2.ToString(),
             (pushDiff > 0 ? "+" : "") + pushDiff.ToString()
+        );
+
+        // Strength training comparison
+        var strength1 = strengthHistory.ContainsKey(date1) ? TimeSpan.FromTicks(strengthHistory[date1].Sum(s => s.Duration.Ticks)) : TimeSpan.Zero;
+        var strength2 = strengthHistory.ContainsKey(date2) ? TimeSpan.FromTicks(strengthHistory[date2].Sum(s => s.Duration.Ticks)) : TimeSpan.Zero;
+        var strengthDiff = strength2 - strength1;
+        comparisonTable.AddRow(
+            "Strength Training",
+            strength1.ToString(@"hh\:mm"),
+            strength2.ToString(@"hh\:mm"),
+            (strengthDiff.TotalMinutes > 0 ? "+" : "") + strengthDiff.ToString(@"hh\:mm")
         );
 
         AnsiConsole.Write(comparisonTable);
@@ -271,10 +326,35 @@ public class ConsoleUI {
 
             AnsiConsole.Write(detailedPushTable);
         }
+
+        if (strengthHistory.ContainsKey(date1) || strengthHistory.ContainsKey(date2))
+        {
+            Console.WriteLine("\nDetailed Strength Training Sessions:");
+            var detailedStrengthTable = new Table();
+            detailedStrengthTable.AddColumns("Date", "Start Time", "End Time", "Duration");
+
+            foreach (var date in new[] { date1, date2 })
+            {
+                if (strengthHistory.ContainsKey(date))
+                {
+                    foreach (var strength in strengthHistory[date])
+                    {
+                        detailedStrengthTable.AddRow(
+                            date.ToString("yyyy-MM-dd"),
+                            strength.StartTime,
+                            strength.EndTime,
+                            strength.Duration.ToString(@"hh\:mm")
+                        );
+                    }
+                }
+            }
+
+            AnsiConsole.Write(detailedStrengthTable);
+        }
     }
 
     private void ShowGoalsMenu(User user) {
-        var goalMenuItems = new List<string> { "Create Goal", "View Goals", "Back" };
+        var goalMenuItems = new List<string> { "Create Goal", "View Goals", "View Goal Details", "Back" };
         var selected = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("Goals Menu")
@@ -284,6 +364,8 @@ public class ConsoleUI {
             CreateGoal(user);
         } else if (selected == "View Goals") {
             ViewGoals(user);
+        } else if (selected == "View Goal Details") {
+            ViewGoalDetails(user);
         }
     }
 
@@ -350,7 +432,7 @@ public class ConsoleUI {
                 .AddChoices(Enum.GetValues<GoalType>()));
 
         GoalTargetType targetType;
-        if (activity.Name == "Jogging") {
+        if (activity.Name == "Jogging" || activity.Name == "Strength Training") {
             targetType = GoalTargetType.Duration;
         } else if (activity.Name == "Push-ups") {
             targetType = GoalTargetType.Count;
@@ -437,18 +519,8 @@ public class ConsoleUI {
     }
 
     private string CalculateProgress(Goal goal, User user) {
-        DateTime now = DateTime.Now;
-        DateTime startDate;
-
-        if (goal.Period == GoalType.Daily) {
-            startDate = now.Date;
-        } else if (goal.Period == GoalType.Weekly) {
-            // Start of week (Monday)
-            int diff = (7 + (now.DayOfWeek - DayOfWeek.Monday)) % 7;
-            startDate = now.AddDays(-diff).Date;
-        } else { // Monthly
-            startDate = new DateTime(now.Year, now.Month, 1);
-        }
+        // For demo purposes, show all-time progress instead of period-based
+        DateTime startDate = DateTime.MinValue;
 
         var participants = goal.IsShared ? goal.Participants : new List<User> { user };
 
@@ -459,11 +531,94 @@ public class ConsoleUI {
                 .Sum(p => p.Count);
             return $"{pushUps}/{goal.TargetCount}";
         } else {
-            // For jogging duration
-            var jogDuration = dataManager.GetAllJogData()
-                .Where(j => participants.Any(part => part.Name == j.User.Name) && j.RecordedAt >= startDate)
-                .Sum(j => j.Duration.TotalMinutes);
-            return $"{jogDuration:F0}/{goal.TargetDuration.TotalMinutes} min";
+            // For duration-based activities
+            double totalMinutes = 0;
+            if (goal.Activity.Name == "Jogging") {
+                totalMinutes = dataManager.GetAllJogData()
+                    .Where(j => participants.Any(part => part.Name == j.User.Name) && j.RecordedAt >= startDate)
+                    .Sum(j => j.Duration.TotalMinutes);
+            } else if (goal.Activity.Name == "Strength Training") {
+                totalMinutes = dataManager.GetAllStrengthTrainingData()
+                    .Where(s => participants.Any(part => part.Name == s.User.Name) && s.RecordedAt >= startDate)
+                    .Sum(s => s.Duration.TotalMinutes);
+            }
+            return $"{totalMinutes:F0}/{goal.TargetDuration.TotalMinutes} min";
+        }
+    }
+
+    private string CalculateProgressForUser(Goal goal, User participant) {
+        // For demo purposes, show all-time progress instead of period-based
+        DateTime startDate = DateTime.MinValue;
+
+        if (goal.TargetType == GoalTargetType.Count) {
+            // For push-ups
+            var pushUps = dataManager.GetAllPushUpData()
+                .Where(p => p.User.Name == participant.Name && p.RecordedAt >= startDate)
+                .Sum(p => p.Count);
+            return $"{pushUps}/{goal.TargetCount}";
+        } else {
+            // For duration-based activities
+            double totalMinutes = 0;
+            if (goal.Activity.Name == "Jogging") {
+                totalMinutes = dataManager.GetAllJogData()
+                    .Where(j => j.User.Name == participant.Name && j.RecordedAt >= startDate)
+                    .Sum(j => j.Duration.TotalMinutes);
+            } else if (goal.Activity.Name == "Strength Training") {
+                totalMinutes = dataManager.GetAllStrengthTrainingData()
+                    .Where(s => s.User.Name == participant.Name && s.RecordedAt >= startDate)
+                    .Sum(s => s.Duration.TotalMinutes);
+            }
+            return $"{totalMinutes:F0}/{goal.TargetDuration.TotalMinutes} min";
+        }
+    }
+
+    private void ViewGoalDetails(User user) {
+        var userGoals = dataManager.GetAllGoals().Where(g => g.Participants.Any(p => p.Name == user.Name)).ToList();
+
+        if (!userGoals.Any()) {
+            Console.WriteLine("No goals found for this user.");
+            return;
+        }
+
+        var selectedGoal = AnsiConsole.Prompt(
+            new SelectionPrompt<Goal>()
+                .Title("Select a goal to view details")
+                .AddChoices(userGoals)
+                .UseConverter(g => $"{(g.IsShared ? "Shared" : "Personal")} - {g.Activity.Name}: {g.Description}"));
+
+        // Display goal summary
+        Console.WriteLine($"Goal Details:");
+        Console.WriteLine($"Type: {(selectedGoal.IsShared ? "Shared" : "Personal")}");
+        Console.WriteLine($"Creator: {selectedGoal.Creator.Name}");
+        Console.WriteLine($"Activity: {selectedGoal.Activity.Name}");
+        Console.WriteLine($"Period: {selectedGoal.Period}");
+        string targetStr = selectedGoal.TargetType == GoalTargetType.Count 
+            ? $"{selectedGoal.TargetCount}" 
+            : $"{selectedGoal.TargetDuration.TotalMinutes} minutes";
+        Console.WriteLine($"Target: {targetStr}");
+        Console.WriteLine($"Description: {selectedGoal.Description}");
+        Console.WriteLine($"Created: {selectedGoal.CreatedAt:yyyy-MM-dd}");
+        Console.WriteLine($"Participants: {string.Join(", ", selectedGoal.Participants.Select(p => p.Name))}");
+
+        // Display progress
+        if (selectedGoal.IsShared) {
+            Console.WriteLine("\nIndividual Progress:");
+            var progressTable = new Table();
+            progressTable.AddColumns("Participant", "Progress");
+
+            foreach (var participant in selectedGoal.Participants) {
+                string progressStr = CalculateProgressForUser(selectedGoal, participant);
+                progressTable.AddRow(participant.Name, progressStr);
+            }
+
+            // Add total progress
+            string totalProgress = CalculateProgress(selectedGoal, user);
+            progressTable.AddRow("Total", totalProgress);
+
+            AnsiConsole.Write(progressTable);
+        } else {
+            string progressStr = CalculateProgressForUser(selectedGoal, user);
+            Console.WriteLine($"Your Progress: {progressStr}");
         }
     }
 

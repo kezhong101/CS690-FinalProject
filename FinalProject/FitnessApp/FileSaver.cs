@@ -23,6 +23,11 @@ public class FileSaver
         File.AppendAllText(this.fileName, data.User.Name + "|" + data.Count + "|" + data.RecordedAt.ToString("o") + Environment.NewLine);
     }
 
+    // overload for strength training data
+    public void AppendData(StrengthTrainingData data) {
+        File.AppendAllText(this.fileName, data.User.Name + "|" + data.StartTime + "|" + data.EndTime + "|" + data.RecordedAt.ToString("o") + Environment.NewLine);
+    }
+
     // overload for goal data
     public void AppendData(Goal data) {
         File.AppendAllText(this.fileName, data.ToString() + Environment.NewLine);
